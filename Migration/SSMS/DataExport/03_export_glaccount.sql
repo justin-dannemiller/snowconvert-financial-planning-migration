@@ -1,0 +1,22 @@
+SELECT
+  GLAccountID,
+  AccountNumber,
+  AccountName,
+  AccountType,
+  AccountSubType,
+  ParentAccountID,
+  AccountLevel,
+  IsPostable,
+  IsBudgetable,
+  IsStatistical,
+  NormalBalance,
+  CurrencyCode,
+  ConsolidationAccountID,
+  IntercompanyFlag,
+  IsActive,
+  CreatedDateTime,
+  ModifiedDateTime,
+  TaxCode,
+  StatutoryAccountCode,
+  IFRSAccountCode
+FROM Planning.GLAccount;
