@@ -1,0 +1,12 @@
+-- C1: Ensure 2025 months exist (1..12)
+;WITH m AS (
+  SELECT 1 AS FiscalMonth UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL
+  SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL
+  SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12
+)
+SELECT m.FiscalMonth AS MissingMonth
+FROM m
+LEFT JOIN Planning.FiscalPeriod fp
+  ON fp.FiscalYear = 2025 AND fp.FiscalMonth = m.FiscalMonth
+WHERE fp.FiscalPeriodID IS NULL;
+-- should return 0 rows
