@@ -1,0 +1,26 @@
+SELECT
+  CONVERT(VARCHAR(50), BudgetLineItemID) AS BudgetLineItemID,
+  CONVERT(VARCHAR(50), BudgetHeaderID) AS BudgetHeaderID,
+  CONVERT(VARCHAR(50), GLAccountID) AS GLAccountID,
+  CONVERT(VARCHAR(50), CostCenterID) AS CostCenterID,
+  CONVERT(VARCHAR(50), FiscalPeriodID) AS FiscalPeriodID,
+  CONVERT(VARCHAR(50), OriginalAmount) AS OriginalAmount,
+  CONVERT(VARCHAR(50), AdjustedAmount) AS AdjustedAmount,
+  CONVERT(VARCHAR(50), FinalAmount) AS FinalAmount,
+  CONVERT(VARCHAR(50), LocalCurrencyAmount) AS LocalCurrencyAmount,
+  CONVERT(VARCHAR(50), ReportingCurrencyAmount) AS ReportingCurrencyAmount,
+  CONVERT(VARCHAR(50), StatisticalQuantity) AS StatisticalQuantity,
+  CONVERT(VARCHAR(50), UnitOfMeasure) AS UnitOfMeasure,
+  CONVERT(VARCHAR(50), SpreadMethodCode) AS SpreadMethodCode,
+  CONVERT(VARCHAR(50), SeasonalityFactor) AS SeasonalityFactor,
+  CONVERT(VARCHAR(50), SourceSystem) AS SourceSystem,
+  CONVERT(VARCHAR(200), SourceReference) AS SourceReference,
+  CONVERT(VARCHAR(36), ImportBatchID) AS ImportBatchID,
+  CASE WHEN IsAllocated = 1 THEN '1' ELSE '0' END AS IsAllocated,
+  CONVERT(VARCHAR(50), AllocationSourceLineID) AS AllocationSourceLineID,
+  CONVERT(VARCHAR(50), AllocationPercentage) AS AllocationPercentage,
+  CONVERT(VARCHAR(50), LastModifiedByUserID) AS LastModifiedByUserID,
+  CONVERT(VARCHAR(33), LastModifiedDateTime, 126) AS LastModifiedDateTime,
+  CASE WHEN RowHash IS NULL THEN NULL ELSE CONVERT(VARCHAR(MAX), RowHash, 2) END AS RowHash
+FROM Planning.BudgetLineItem
+ORDER BY BudgetLineItemID;
