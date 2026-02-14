@@ -1,0 +1,22 @@
+CREATE OR REPLACE TABLE GLACCOUNT (
+  GLAccountID             INT            NOT NULL,
+  AccountNumber           VARCHAR        NOT NULL,
+  AccountName             VARCHAR        NOT NULL,
+  AccountType             VARCHAR(1)     NOT NULL,
+  AccountSubType          VARCHAR        NULL,
+  ParentAccountID         INT            NULL,
+  AccountLevel            INT            NOT NULL,
+  IsPostable              BOOLEAN        NOT NULL,
+  IsBudgetable            BOOLEAN        NOT NULL,
+  IsStatistical           BOOLEAN        NOT NULL,
+  NormalBalance           VARCHAR(1)     NOT NULL,
+  CurrencyCode            VARCHAR(3)     NOT NULL,
+  ConsolidationAccountID  INT            NULL,
+  IntercompanyFlag        BOOLEAN        NOT NULL,
+  IsActive                BOOLEAN        NOT NULL,
+  CreatedDateTime         TIMESTAMP_NTZ  NOT NULL,
+  ModifiedDateTime        TIMESTAMP_NTZ  NOT NULL,
+  TaxCode                 VARCHAR        NULL,
+  StatutoryAccountCode    VARCHAR        NULL,
+  IFRSAccountCode         VARCHAR        NULL
+);
