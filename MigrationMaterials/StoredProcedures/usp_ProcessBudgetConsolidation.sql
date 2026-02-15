@@ -26,7 +26,7 @@ DECLARE
     v_include_zero_balances BOOLEAN DEFAULT TRUE;
     v_rounding_precision    INT DEFAULT NULL;
 
-    -- Counters (Snowflake-safe replacement for EXISTS/LET)
+    -- Counters
     v_cnt    INT DEFAULT 0;
     v_ins    INT DEFAULT 0;
     v_elim   INT DEFAULT 0;
@@ -198,30 +198,44 @@ BEGIN
     VALUES (v_step, v_step_start, CURRENT_TIMESTAMP(), v_cnt, 'COMPLETED', 'HIERARCHY_TABLE created');
 
     -- -------------------------
+    -- Step: Build Hierarchy Closure (materialize ancestor/descendant pairs)
+    -- -------------------------
+    v_step := 'Build Hierarchy Closure';
+    v_step_start := CURRENT_TIMESTAMP();
+
+    CREATE OR REPLACE TEMP TABLE HIERARCHY_CLOSURE AS
+    SELECT
+        anc.CostCenterID AS AncestorCostCenterID,
+        des.CostCenterID AS DescendantCostCenterID
+    FROM HIERARCHY_TABLE anc
+    JOIN HIERARCHY_TABLE des
+      ON des.SortPath = anc.SortPath
+      OR des.SortPath LIKE anc.SortPath || '/%';
+
+    SELECT COUNT(*)
+      INTO :v_cnt
+    FROM HIERARCHY_CLOSURE;
+
+    INSERT INTO PROCESSING_LOG(STEP_NAME, START_TIME, END_TIME, ROWS_AFFECTED, STATUS_CODE, MESSAGE)
+    VALUES (v_step, v_step_start, CURRENT_TIMESTAMP(), v_cnt, 'COMPLETED', 'HIERARCHY_CLOSURE created');
+
+    -- -------------------------
     -- Step: Hierarchy Consolidation (set-based)
     -- -------------------------
     v_step := 'Hierarchy Consolidation';
     v_step_start := CURRENT_TIMESTAMP();
 
     INSERT INTO CONSOLIDATED_AMOUNTS (GLACCOUNTID, COSTCENTERID, FISCALPERIODID, CONSOLIDATEDAMOUNT, SOURCECOUNT)
-    WITH pairs AS (
-        SELECT
-            anc.CostCenterID AS AncestorCostCenterID,
-            des.CostCenterID AS DescendantCostCenterID
-        FROM HIERARCHY_TABLE anc
-        JOIN HIERARCHY_TABLE des
-          ON des.SortPath LIKE anc.SortPath || '%'
-    ),
-    agg AS (
+    WITH agg AS (
         SELECT
             bli.GLAccountID,
-            p.AncestorCostCenterID AS CostCenterID,
+            hc.AncestorCostCenterID AS CostCenterID,
             bli.FiscalPeriodID,
             SUM(bli.FinalAmount) AS Amount,
             COUNT(*) AS SourceCnt
         FROM PLANNING.BUDGETLINEITEM bli
-        JOIN pairs p
-          ON p.DescendantCostCenterID = bli.CostCenterID
+        JOIN HIERARCHY_CLOSURE hc
+          ON hc.DescendantCostCenterID = bli.CostCenterID
         WHERE bli.BudgetHeaderID = SOURCE_BUDGET_HEADER_ID
         GROUP BY 1,2,3
     )
@@ -361,32 +375,32 @@ BEGIN
     WHERE BudgetHeaderID = v_target_id
       AND SourceReference = v_run_id;
 
-v_rows_processed := v_added;
+    v_rows_processed := v_added;
 
-INSERT INTO PROCESSING_LOG(STEP_NAME, START_TIME, END_TIME, ROWS_AFFECTED, STATUS_CODE, MESSAGE)
-VALUES (v_step, v_step_start, CURRENT_TIMESTAMP(), v_rows_processed, 'COMPLETED', NULL);
+    INSERT INTO PROCESSING_LOG(STEP_NAME, START_TIME, END_TIME, ROWS_AFFECTED, STATUS_CODE, MESSAGE)
+    VALUES (v_step, v_step_start, CURRENT_TIMESTAMP(), v_rows_processed, 'COMPLETED', NULL);
 
--- -------------------------
--- Debug output (optional)
--- -------------------------
-IF (DEBUG_MODE = TRUE) THEN
+    -- -------------------------
+    -- Debug output (optional)
+    -- -------------------------
+    IF (DEBUG_MODE = TRUE) THEN
+        RETURN OBJECT_CONSTRUCT(
+            'status', 'OK',
+            'SourceBudgetHeaderID', SOURCE_BUDGET_HEADER_ID,
+            'TargetBudgetHeaderID', v_target_id,
+            'RunID', v_run_id,
+            'RowsProcessed', v_rows_processed,
+            'ProcessingLog', (SELECT ARRAY_AGG(OBJECT_CONSTRUCT(*)) FROM PROCESSING_LOG ORDER BY LOG_ID)
+        );
+    END IF;
+
     RETURN OBJECT_CONSTRUCT(
         'status', 'OK',
         'SourceBudgetHeaderID', SOURCE_BUDGET_HEADER_ID,
         'TargetBudgetHeaderID', v_target_id,
         'RunID', v_run_id,
-        'RowsProcessed', v_rows_processed,
-        'ProcessingLog', (SELECT ARRAY_AGG(OBJECT_CONSTRUCT(*)) FROM PROCESSING_LOG ORDER BY LOG_ID)
+        'RowsProcessed', v_rows_processed
     );
-END IF;
-
-RETURN OBJECT_CONSTRUCT(
-    'status', 'OK',
-    'SourceBudgetHeaderID', SOURCE_BUDGET_HEADER_ID,
-    'TargetBudgetHeaderID', v_target_id,
-    'RunID', v_run_id,
-    'RowsProcessed', v_rows_processed
-);
 
 EXCEPTION
   WHEN OTHER THEN
