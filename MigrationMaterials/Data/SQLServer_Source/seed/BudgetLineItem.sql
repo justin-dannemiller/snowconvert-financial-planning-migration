@@ -1,4 +1,25 @@
-DECLARE @BudgetHeaderID INT = (SELECT TOP 1 BudgetHeaderID FROM Planning.BudgetHeader WHERE BudgetCode='BUDGET_2025_BASE');
+-- Debug: show budget headers currently in the DB
+SELECT BudgetHeaderID, BudgetCode, FiscalYear, VersionNumber, StatusCode
+FROM Planning.BudgetHeader
+ORDER BY BudgetHeaderID;
+
+DECLARE @BudgetHeaderID INT =
+(
+    SELECT TOP 1 BudgetHeaderID
+    FROM Planning.BudgetHeader
+    WHERE BudgetCode = 'BUD25_BASE'
+    ORDER BY BudgetHeaderID
+);
+
+IF @BudgetHeaderID IS NULL
+BEGIN
+    THROW 50010, 'BudgetLineItem seed failed: expected BudgetHeader BudgetCode=BUD25_BASE not found. Run BudgetHeader seed (or update BudgetCode) before BudgetLineItem.', 1;
+END
+
+PRINT CONCAT('Using @BudgetHeaderID = ', @BudgetHeaderID);
+
+
+DECLARE @BudgetHeaderID INT = (SELECT TOP 1 BudgetHeaderID FROM Planning.BudgetHeader WHERE BudgetCode='BUD25_BASE');
 
 DECLARE @Jan INT = (SELECT FiscalPeriodID FROM Planning.FiscalPeriod WHERE FiscalYear=2025 AND FiscalMonth=1);
 DECLARE @Feb INT = (SELECT FiscalPeriodID FROM Planning.FiscalPeriod WHERE FiscalYear=2025 AND FiscalMonth=2);
@@ -36,12 +57,10 @@ VALUES
 
     -- ------------------------------------------------------------
     -- Coverage rows (SourceSystem=SEED_TEST)
-    -- These are intentionally designed to exercise key branches.
     -- ------------------------------------------------------------
 
     -- Guaranteed elimination pair for your current Snowflake matching logic:
     -- SAME (BudgetHeaderID, GLAccountID, CostCenterID, FiscalPeriodID) partition, opposite amounts, adjacent insert.
-    -- Note: This is an intra-entity offset pair to trigger elim mechanics at this grain.
     (@BudgetHeaderID, @ICR, @US_EAST, @Feb,   1000.00, 0.00, 'MANUAL', 'SEED_TEST', 'FEB25_US_EAST_ICR_ADJ__ELIMPAIR_A', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
     (@BudgetHeaderID, @ICR, @US_EAST, @Feb,  -1000.00, 0.00, 'MANUAL', 'SEED_TEST', 'FEB25_US_EAST_ICR_ADJ__ELIMPAIR_B', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
 

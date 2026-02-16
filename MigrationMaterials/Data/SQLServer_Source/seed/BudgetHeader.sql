@@ -9,7 +9,7 @@ INSERT INTO Planning.BudgetHeader (
 )
 VALUES
 (
-    'BUDGET_2025_BASE',
+    'BUD25_BASE', 
     N'2025 Operating Budget (Base)',
     'OPERATING',
     'BASE',
@@ -25,7 +25,7 @@ VALUES
     SYSUTCDATETIME()
 ),
 (
-    'BUDGET_2025_DRAFT',
+    'BUD25_DRAFT', 
     N'2025 Operating Budget (Draft - Validation Test)',
     'OPERATING',
     'BASE',
@@ -41,7 +41,7 @@ VALUES
     SYSUTCDATETIME()
 ),
 (
-    'BUDGET_2025_TARGET',
+    'BUD25_TARGET',
     N'2025 Consolidation Target (Pre-created)',
     'CONSOLIDATED',
     'BASE',
