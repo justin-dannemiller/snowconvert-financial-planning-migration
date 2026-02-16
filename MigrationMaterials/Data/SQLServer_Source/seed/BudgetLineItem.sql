@@ -8,11 +8,11 @@ DECLARE @Exp INT = (SELECT GLAccountID FROM Planning.GLAccount WHERE AccountNumb
 DECLARE @ICR INT = (SELECT GLAccountID FROM Planning.GLAccount WHERE AccountNumber='1300');
 DECLARE @ICP INT = (SELECT GLAccountID FROM Planning.GLAccount WHERE AccountNumber='2300');
 
--- Leaf/team cost centers
 DECLARE @US_WEST INT = (SELECT CostCenterID FROM Planning.CostCenter WHERE CostCenterCode='NWHUS-OPS-W');
 DECLARE @US_EAST INT = (SELECT CostCenterID FROM Planning.CostCenter WHERE CostCenterCode='NWHUS-OPS-E');
 DECLARE @DE_BER  INT = (SELECT CostCenterID FROM Planning.CostCenter WHERE CostCenterCode='NWHDE-OPS-BER');
 
+DECLARE @US_IT_INF INT = (SELECT CostCenterID FROM Planning.CostCenter WHERE CostCenterCode='NWHUS-IT-INF');
 
 INSERT INTO Planning.BudgetLineItem (
     BudgetHeaderID, GLAccountID, CostCenterID, FiscalPeriodID,
@@ -21,29 +21,32 @@ INSERT INTO Planning.BudgetLineItem (
     ImportBatchID, IsAllocated, AllocationSourceLineID, AllocationPercentage,
     LastModifiedByUserID, LastModifiedDateTime
 )
-SELECT *
-FROM (VALUES
-    -- Revenue & expense
-    (@BudgetHeaderID, @Rev, @US_WEST, @Jan,  250000.00, 0.00, 'MANUAL', 'SEED', 'seed-1', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
-    (@BudgetHeaderID, @Exp, @US_WEST, @Jan,  -90000.00, 0.00, 'MANUAL', 'SEED', 'seed-2', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
-    (@BudgetHeaderID, @Rev, @US_EAST, @Jan,  180000.00, 0.00, 'MANUAL', 'SEED', 'seed-3', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
-    (@BudgetHeaderID, @Exp, @US_EAST, @Jan,  -70000.00, 0.00, 'MANUAL', 'SEED', 'seed-4', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+VALUES
+    -- ------------------------------------------------------------
+    -- Baseline rows (SourceSystem=SEED)
+    -- ------------------------------------------------------------
+    (@BudgetHeaderID, @Rev, @US_WEST, @Jan,  250000.00, 0.00, 'MANUAL', 'SEED', 'JAN25_US_WEST_REV_BASE', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+    (@BudgetHeaderID, @Exp, @US_WEST, @Jan,  -90000.00, 0.00, 'MANUAL', 'SEED', 'JAN25_US_WEST_OPEX_BASE', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+    (@BudgetHeaderID, @Rev, @US_EAST, @Jan,  180000.00, 0.00, 'MANUAL', 'SEED', 'JAN25_US_EAST_REV_BASE', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+    (@BudgetHeaderID, @Exp, @US_EAST, @Jan,  -70000.00, 0.00, 'MANUAL', 'SEED', 'JAN25_US_EAST_OPEX_BASE', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
 
-    -- Intercompany example (US receivable vs DE payable; not perfectly offset so reconciliation has variance)
-    (@BudgetHeaderID, @ICR, @US_WEST, @Feb,   15000.00, 0.00, 'MANUAL', 'SEED', 'seed-ic-1', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
-    (@BudgetHeaderID, @ICP, @DE_BER,  @Feb,  -14500.00, 0.00, 'MANUAL', 'SEED', 'seed-ic-2', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME())
-) v(
-    BudgetHeaderID, GLAccountID, CostCenterID, FiscalPeriodID,
-    OriginalAmount, AdjustedAmount,
-    SpreadMethodCode, SourceSystem, SourceReference,
-    ImportBatchID, IsAllocated, AllocationSourceLineID, AllocationPercentage,
-    LastModifiedByUserID, LastModifiedDateTime
-)
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM Planning.BudgetLineItem bli
-    WHERE bli.BudgetHeaderID = v.BudgetHeaderID
-      AND bli.GLAccountID = v.GLAccountID
-      AND bli.CostCenterID = v.CostCenterID
-      AND bli.FiscalPeriodID = v.FiscalPeriodID
-);
+    -- Realistic intercompany balances across entities (not guaranteed to "pair" in your current elim logic)
+    (@BudgetHeaderID, @ICR, @US_WEST, @Feb,   15000.00, 0.00, 'MANUAL', 'SEED', 'FEB25_US_WEST_ICR_BASE', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+    (@BudgetHeaderID, @ICP, @DE_BER,  @Feb,  -14500.00, 0.00, 'MANUAL', 'SEED', 'FEB25_DE_BER_ICP_BASE',  NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+
+    -- ------------------------------------------------------------
+    -- Coverage rows (SourceSystem=SEED_TEST)
+    -- These are intentionally designed to exercise key branches.
+    -- ------------------------------------------------------------
+
+    -- Guaranteed elimination pair for your current Snowflake matching logic:
+    -- SAME (BudgetHeaderID, GLAccountID, CostCenterID, FiscalPeriodID) partition, opposite amounts, adjacent insert.
+    -- Note: This is an intra-entity offset pair to trigger elim mechanics at this grain.
+    (@BudgetHeaderID, @ICR, @US_EAST, @Feb,   1000.00, 0.00, 'MANUAL', 'SEED_TEST', 'FEB25_US_EAST_ICR_ADJ__ELIMPAIR_A', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+    (@BudgetHeaderID, @ICR, @US_EAST, @Feb,  -1000.00, 0.00, 'MANUAL', 'SEED_TEST', 'FEB25_US_EAST_ICR_ADJ__ELIMPAIR_B', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+
+    -- RoundingPrecision test (unique natural key): -10.005 rounds differently at precision=2
+    (@BudgetHeaderID, @Exp, @US_EAST, @Feb,    -10.005, 0.00, 'MANUAL', 'SEED_TEST', 'FEB25_US_EAST_OPEX_ADJ__ROUNDING', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME()),
+
+    -- Optional: extra descendant row to strengthen rollup breadth without violating natural key
+    (@BudgetHeaderID, @Rev, @US_IT_INF, @Jan,  12000.00, 0.00, 'MANUAL', 'SEED_TEST', 'JAN25_US_IT_REV__ROLLUP_EXTRA', NULL, 0, NULL, NULL, NULL, SYSUTCDATETIME());

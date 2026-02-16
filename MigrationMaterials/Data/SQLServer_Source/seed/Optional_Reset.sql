@@ -1,8 +1,20 @@
--- Optional reset (safe-ish order)
-DELETE FROM Planning.BudgetLineItem;
-DELETE FROM Planning.BudgetHeader;
+SET NOCOUNT ON;
 
--- Dimensions (only if you're sure nothing else depends on them)
-DELETE FROM Planning.CostCenter;
-DELETE FROM Planning.GLAccount;
-DELETE FROM Planning.FiscalPeriod;
+BEGIN TRY
+  BEGIN TRAN;
+
+  -- Fact/child tables first
+  DELETE FROM Planning.BudgetLineItem;
+  DELETE FROM Planning.BudgetHeader;
+
+  -- Dimensions
+  DELETE FROM Planning.CostCenter;
+  DELETE FROM Planning.GLAccount;
+  DELETE FROM Planning.FiscalPeriod;
+
+  COMMIT;
+END TRY
+BEGIN CATCH
+  IF @@TRANCOUNT > 0 ROLLBACK;
+  THROW;
+END CATCH;

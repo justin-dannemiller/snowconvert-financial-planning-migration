@@ -2,7 +2,6 @@ SET NOCOUNT ON;
 
 DECLARE @Inserted INT = 1;
 
--- 1) Define seed once (same codes/names you want)
 IF OBJECT_ID('tempdb..#Seed') IS NOT NULL DROP TABLE #Seed;
 CREATE TABLE #Seed (
     CostCenterCode     VARCHAR(20)  NOT NULL,
@@ -15,18 +14,15 @@ CREATE TABLE #Seed (
 
 INSERT INTO #Seed (CostCenterCode, CostCenterName, ParentCode, HierarchyPath, IsActive, AllocationWeight)
 VALUES
-    -- Level 1: Entities
-    ('NWHUS-HQ',        'Northwind Health (US) - HQ',        NULL, hierarchyid::Parse('/1/'),        1, 1.00),
-    ('NWHCA-HQ',        'Northwind Health (Canada) - HQ',    NULL, hierarchyid::Parse('/2/'),        1, 1.00),
-    ('NWHDE-HQ',        'Northwind Health (Germany) - HQ',   NULL, hierarchyid::Parse('/3/'),        1, 1.00),
+    ('NWHUS-HQ',        'Northwind Health (US) - HQ',        NULL, hierarchyid::Parse('/1/'),          1, 1.00),
+    ('NWHCA-HQ',        'Northwind Health (Canada) - HQ',    NULL, hierarchyid::Parse('/2/'),          1, 1.00),
+    ('NWHDE-HQ',        'Northwind Health (Germany) - HQ',   NULL, hierarchyid::Parse('/3/'),          1, 1.00),
 
-    -- Level 2: Business Units
-    ('NWHUS-HOSP',      'US Hospitals Division',             'NWHUS-HQ', hierarchyid::Parse('/1/1/'), 1, 1.00),
-    ('NWHUS-INS',       'US Insurance Products',             'NWHUS-HQ', hierarchyid::Parse('/1/2/'), 1, 1.00),
-    ('NWHCA-HOSP',      'Canada Hospitals Division',         'NWHCA-HQ', hierarchyid::Parse('/2/1/'), 1, 1.00),
-    ('NWHDE-HOSP',      'Germany Hospitals Division',        'NWHDE-HQ', hierarchyid::Parse('/3/1/'), 1, 1.00),
+    ('NWHUS-HOSP',      'US Hospitals Division',             'NWHUS-HQ', hierarchyid::Parse('/1/1/'),  1, 1.00),
+    ('NWHUS-INS',       'US Insurance Products',             'NWHUS-HQ', hierarchyid::Parse('/1/2/'),  1, 1.00),
+    ('NWHCA-HOSP',      'Canada Hospitals Division',         'NWHCA-HQ', hierarchyid::Parse('/2/1/'),  1, 1.00),
+    ('NWHDE-HOSP',      'Germany Hospitals Division',        'NWHDE-HQ', hierarchyid::Parse('/3/1/'),  1, 1.00),
 
-    -- Level 3: Functions
     ('NWHUS-HOSP-REV',  'US Hospitals - Revenue Cycle',      'NWHUS-HOSP', hierarchyid::Parse('/1/1/1/'), 1, 1.00),
     ('NWHUS-HOSP-OPS',  'US Hospitals - Operations',         'NWHUS-HOSP', hierarchyid::Parse('/1/1/2/'), 1, 1.00),
     ('NWHUS-HOSP-IT',   'US Hospitals - IT',                 'NWHUS-HOSP', hierarchyid::Parse('/1/1/3/'), 1, 1.00),
@@ -34,7 +30,6 @@ VALUES
     ('NWHCA-HOSP-OPS',  'Canada Hospitals - Operations',     'NWHCA-HOSP', hierarchyid::Parse('/2/1/1/'), 1, 1.00),
     ('NWHDE-HOSP-OPS',  'Germany Hospitals - Operations',    'NWHDE-HOSP', hierarchyid::Parse('/3/1/1/'), 1, 1.00),
 
-    -- Level 4: Teams (leafs)
     ('NWHUS-REV-AR',    'US Rev Cycle - Accounts Receivable','NWHUS-HOSP-REV', hierarchyid::Parse('/1/1/1/1/'), 1, 1.00),
     ('NWHUS-REV-BILL',  'US Rev Cycle - Billing',            'NWHUS-HOSP-REV', hierarchyid::Parse('/1/1/1/2/'), 1, 1.00),
     ('NWHUS-OPS-W',     'US Hospital Ops - West Region',     'NWHUS-HOSP-OPS', hierarchyid::Parse('/1/1/2/1/'), 1, 1.00),
@@ -42,7 +37,7 @@ VALUES
     ('NWHUS-IT-INF',    'US Hospital IT - Infrastructure',   'NWHUS-HOSP-IT', hierarchyid::Parse('/1/1/3/1/'), 1, 1.00),
     ('NWHDE-OPS-BER',   'Germany Hospital Ops - Berlin',     'NWHDE-HOSP-OPS', hierarchyid::Parse('/3/1/1/1/'), 1, 1.00);
 
--- 2) Insert roots first (ParentCode IS NULL)
+-- Insert roots (only if missing)
 INSERT INTO Planning.CostCenter (
     CostCenterCode, CostCenterName, ParentCostCenterID,
     HierarchyPath,
@@ -59,11 +54,10 @@ SELECT
     s.AllocationWeight
 FROM #Seed s
 WHERE s.ParentCode IS NULL
-  AND NOT EXISTS (
-      SELECT 1 FROM Planning.CostCenter cc WHERE cc.CostCenterCode = s.CostCenterCode
-  );
+  AND NOT EXISTS (SELECT 1 FROM Planning.CostCenter cc WHERE cc.CostCenterCode = s.CostCenterCode);
 
--- 3) Iteratively insert children whose parent now exists
+-- Iteratively insert children whose parent exists (only if missing)
+SET @Inserted = 1;
 WHILE @Inserted > 0
 BEGIN
     INSERT INTO Planning.CostCenter (
@@ -86,14 +80,12 @@ BEGIN
     INNER JOIN Planning.CostCenter p
         ON p.CostCenterCode = s.ParentCode
     WHERE s.ParentCode IS NOT NULL
-      AND NOT EXISTS (
-          SELECT 1 FROM Planning.CostCenter cc WHERE cc.CostCenterCode = s.CostCenterCode
-      );
+      AND NOT EXISTS (SELECT 1 FROM Planning.CostCenter cc WHERE cc.CostCenterCode = s.CostCenterCode);
 
     SET @Inserted = @@ROWCOUNT;
-END
+END;
 
--- 4) Hard fail if anything still missing (git reproducibility)
+-- Fail if anything missing
 IF EXISTS (
     SELECT 1
     FROM #Seed s
@@ -107,6 +99,5 @@ BEGIN
     WHERE cc.CostCenterID IS NULL
     ORDER BY s.CostCenterCode;
 
-    THROW 50001, 'CostCenter seed failed: some cost centers were not inserted. See MissingCostCenterCode output.', 1;
+    THROW 50001, 'CostCenter seed failed: some cost centers were not inserted.', 1;
 END
-

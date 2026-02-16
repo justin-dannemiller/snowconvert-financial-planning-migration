@@ -1,4 +1,3 @@
--- Seed Fiscal Periods (example: 2025 Jan–Dec)
 DECLARE @year SMALLINT = 2025;
 
 ;WITH m AS (
@@ -24,8 +23,4 @@ SELECT
     NULL,
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
-FROM m
-WHERE NOT EXISTS (
-    SELECT 1 FROM Planning.FiscalPeriod fp
-    WHERE fp.FiscalYear = @year AND fp.FiscalMonth = m.FiscalMonth
-);
+FROM m;
