@@ -1,40 +1,163 @@
 # snowconvert-financial-planning-migration
-Migration of a SQL Server financial planning application to Snowflake, including schema and stored procedure refactoring for budgeting, allocation, consolidation, and financial close workflows.
+
+This repository contains my migration of a SQL Server–based financial planning application to Snowflake.  
+The work focuses primarily on migrating and validating the stored procedure **`usp_ProcessBudgetConsolidation`**, along with the schema and supporting logic it depends on.
+
+The goal of the migration was to preserve the business behavior of the original implementation while adapting it to Snowflake’s set-based execution model.
+
+---
+
+## Scope of Work
+
+I completed the following:
+
+- Migration of the Planning schema and core tables
+- Migration of hierarchy-related logic required for consolidation
+- A complete Snowflake implementation of:
+  - **`usp_ProcessBudgetConsolidation`**
+- Supporting procedures, views, and validation scripts needed to test correctness
+
+Other stored procedures included in the assignment were reviewed to understand dependencies and patterns, but were not fully migrated.
+
+---
+
+## Use of AI
+
+I used AI as a supporting tool primarily for understanding and reasoning, not as a substitute for design or implementation.
+
+AI was used to:
+- Identify SQL Server features that do not translate directly to Snowflake (for example, cursors and table-valued parameters)
+- Build a quick understanding of common financial planning concepts used in the schema (cost center hierarchies, consolidation behavior)
+- Generate high-level summaries of SQL Server procedures to separate business intent from SQL Server–specific implementation details
+
+---
+
+## Design Approach
+
+Rather than translating the SQL Server procedure line by line, I focused on capturing the core behavior of the consolidation process in a way that fits Snowflake well.
+
+Key choices included:
+- Replacing cursor-based hierarchy traversal with a materialized hierarchy table
+- Using set-based aggregations instead of procedural row-by-row logic
+- Treating consolidation output as a deterministic, queryable result scoped by a generated `RunID`
+
+This preserves the intent of the original procedure while avoiding SQL Server–specific constructs that do not map cleanly to Snowflake.
+
+---
+
+## Testing and Validation Overview
+
+Validation focused on answering a simple question:
+
+> Does the Snowflake implementation behave the same way as the SQL Server version for the same inputs?
+
+To answer this, I used a combination of structural checks, output comparisons, and behavioral tests.
+
+---
+
+## 1. Hierarchy Validation (Dependency)
+
+The consolidation procedure depends on a correctly built cost center hierarchy.  
+The supporting procedure **`sp_BuildCostCenterHierarchy`** was validated independently using basic structural checks:
+
+- Expected number of hierarchy nodes
+- Reasonable distribution of nodes by level
+- Parent-child reference integrity
+- Absence of duplicate or self-referencing nodes
+- Consistency between hierarchy paths and levels
+
+**Sanity check script:**  
+[test_sp_BuildCostCenterHierarchy.sql](MigrationMaterials/Tests/Snowflake/SanityChecks/StoredProcedures/test_sp_BuildCostCenterHierarchy.sql)
+
+These checks ensure the hierarchy used by consolidation is internally consistent.
+
+
+## 2. Leaf-Level Totals Comparison (SQL Server vs Snowflake)
+
+Before validating hierarchical rollups, I first confirmed that the **leaf-level financial totals** used as inputs to consolidation are identical between SQL Server and Snowflake for the same source budget.
+
+This check verifies that:
+- Source data was migrated correctly
+- No duplication or loss occurred during loading
+- Consolidation inputs are consistent across systems
+
+Because consolidation math is performed entirely at the leaf level, matching results here strongly constrains the space of possible downstream errors.
+
+**Validation scripts:**
+- [Snowflake: 02_leaf_level_totals.sql](MigrationMaterials/Tests/Snowflake/Validation/Evidence/02_leaf_level_totals.sql)
+- [SQL Server: 02_leaf_level_totals.sql](MigrationMaterials/Tests/SQLServer_Source/Validation/Evidence/02_leaf_level_totals.sql)
+
+**SQL Server – Leaf-Level Totals (Source Budget):**  
+![SQL Server leaf-level totals](MigrationMaterials/Docs/images/SQLServer_LeafLevelTotals.png)
+
+**Snowflake – Leaf-Level Totals (Source Budget):**  
+![Snowflake leaf-level totals](MigrationMaterials/Docs/images/Snowflake_LeafLevelTotals.png)
+
+---
+
+## 3. Hierarchy Rollup Comparison (SQL Server vs Snowflake)
+
+To confirm that hierarchical aggregation behavior was preserved, I compared rollup results between SQL Server and Snowflake using the same input data.
+
+This comparison verifies that:
+- Leaf values roll up correctly to parent cost centers
+- Parent totals equal the sum of their descendants
+- Hierarchy boundaries are respected consistently
+
+**Validation scripts:**
+- [Snowflake: 01_hierarchy_rollup_equivalence.sql](MigrationMaterials/Tests/Snowflake/Validation/Evidence/01_hierarchy_rollup_equivalence.sql)
+- [SQL Server: 01_hierarchy_rollup_equivalence.sql](MigrationMaterials/Tests/SQLServer_Source/Validation/Evidence/01_hierarchy_rollup_equivalence.sql)
+
+**SQL Server – Hierarchical Rollup:**  
+![SQL Server hierarchy rollup](MigrationMaterials/Docs/images/SQLServer_Hierarchy_Rollup_Equivalence.png)
+
+**Snowflake – Hierarchical Rollup:**  
+![Snowflake hierarchy rollup](MigrationMaterials/Docs/images/Snowflake_Hierarchy_Rollup_Equivalence.png)
 
 
 
-## *Use of AI and Approach*
-I used AI as a productivity and reasoning aid throughout the migration.
+## 4. Final Consolidated Output (Snowflake)
 
-I used it early on to identify and reason about SQL Server features that do not have direct Snowflake equivalents (such as FILESTREAM, cursor-based processing, and certain transaction patterns), which helped guide design decisions during schema and procedure refactoring.
+In Snowflake, the consolidated result is materialized as a persistent dataset.  
+Validation focuses on **root-level totals**, which represent the economically meaningful results of consolidation (and avoids double-counting across hierarchy levels).
 
-Because I am not deeply familiar with enterprise financial planning systems, I also used AI to quickly understand the typical structure and workflows of these systems (cost center hierarchies, budget consolidation, intercompany eliminations, and allocation rules). This helped me reason about the intent behind the schema and stored procedures rather than treating them as opaque SQL.
+**Validation script (Snowflake):**
+- [03_consolidated_root_level_totals.sql](MigrationMaterials/Tests/Snowflake/Validation/Evidence/03_consolidated_root_level_totals.sql)
 
-To understand procedural logic, I used AI to generate high-level natural language summaries of the stored procedures. This made it easier to separate business behavior from SQL Server–specific implementation details.
+**Final consolidated output (root-level totals):**
 
-AI was also used to generate initial versions of migrated tables, views, and some of the procedure logic. These drafts were treated as starting points only. All structural decisions—such as replacing cursor-based hierarchy traversal with set-based rollups using a materialized path—were manually reasoned about and refined.
-
-Finally, I used AI to help design comprehensive test cases and sanity checks, including example datasets that exercise hierarchy depth, sibling rollups, intercompany activity, and fiscal period coverage. These tests were based on my understanding of the procedures’ assumptions and failure modes and were intended to validate semantic correctness rather than just successful execution.
-
-
-
-## *Testing and Validation Plan*
-My validation approach was to compare Snowflake results directly against SQL Server using the same input data, effectively using the procedure output in SQL Server as a baseline of accuracy. As part of this, I created several sanity checks on the generated data in the SQL server to catch broken assumptions early (hierarchy integrity, entity parsing, intercompany mappings, and period coverage) so that any discrepancies discovered later could be attributed to migration logic rather than data issues.
-
-For consolidation, this validation would include:
-
-Aggregate comparisons by account, cost center, and fiscal period
-
-Verifying parent cost centers equal the sum of their descendants
-
-Ensuring overall totals match when eliminations are disabled
+![Snowflake root-level totals](MigrationMaterials/Docs/images/Snowflake_RootLevelTotals.png)
 
 
 
-## *Key Design Direction*
+## 4. Behavioral Tests for the Consolidation Procedure
 
-My approach to migrating the consolidation logic was intentionally not a 1:1 translation of the SQL Server implementation. Rather than attempting to replicate cursor-based, procedural control flow in Snowflake, I was in the process of restructuring the logic to capture the core business behavior—hierarchical rollups and aggregation—using set-based operations.
+Several executable tests were used to confirm correct procedural behavior:
 
-Specifically, the goal was to express consolidation as a series of declarative aggregations that operate over the cost center hierarchy in a single pass, allowing Snowflake to parallelize the work naturally. This approach avoids procedural bottlenecks and better matches Snowflake’s execution model, even though I did not fully complete the final procedure within the time window.
+- Creating a new target budget when none is provided
+- Appending results when a target budget already exists
+- Rejecting consolidation for source budgets in invalid states
+- Ensuring repeated runs are deterministic and traceable by `RunID`
 
-The focus throughout was on preserving business correctness while adapting the implementation to patterns that scale well in Snowflake, rather than reproducing SQL Server constructs that do not translate directly.
+**Validation scripts:**
+- [03_consolidation_new_target.sql](MigrationMaterials/Tests/Snowflake/Validation/03_consolidation_new_target.sql)
+- [04_consolidation_target_provided.sql](MigrationMaterials/Tests/Snowflake/Validation/04_consolidation_target_provided.sql)
+- [05_consolidation_status_validation.sql](MigrationMaterials/Tests/Snowflake/Validation/05_consolidation_status_validation.sql)
+- [06_consolidation_run_traceability.sql](MigrationMaterials/Tests/Snowflake/Validation/06_consolidation_run_traceability.sql)
+
+These tests validate control flow and business rules without relying on visual comparisons.
+
+## 5. Post-Run Sanity Checks
+
+After a successful consolidation run, a small set of sanity checks is used to validate output integrity:
+
+- Rows were written for the run
+- No NULL financial values were produced
+- No duplicate rows at the intended `(GLAccountID, CostCenterID, FiscalPeriodID)` grain
+- All dimensional references are valid
+- The target budget correctly links back to the source budget
+
+**Sanity check script:**  
+[test_usp_ProcessBudgetConsolidation.sql](MigrationMaterials/Tests/Snowflake/SanityChecks/StoredProcedures/test_usp_ProcessBudgetConsolidation.sql)
+
+These checks are run against a representative execution and can be reused for any run.
