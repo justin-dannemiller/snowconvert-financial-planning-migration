@@ -23,3 +23,5 @@ CREATE OR REPLACE TABLE BUDGETLINEITEM (
   LastModifiedDateTime       TIMESTAMP_NTZ NOT NULL,
   RowHash                    VARCHAR       NULL        -- varbinary -> hex string
 );
+
+CREATE OR REPLACE SEQUENCE PLANNING.BUDGETLINEITEMID_SEQ START = 1 INCREMENT = 1;
