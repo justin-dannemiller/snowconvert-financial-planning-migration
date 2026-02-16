@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE COSTCENTER (
+CREATE OR REPLACE TABLE PLANNING.COSTCENTER (
   CostCenterID        INT            NOT NULL,
   CostCenterCode      VARCHAR        NOT NULL,
   CostCenterName      VARCHAR        NOT NULL,

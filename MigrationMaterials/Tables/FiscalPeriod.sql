@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE FISCALPERIOD (
+CREATE OR REPLACE TABLE PLANNING.FISCALPERIOD (
   FiscalPeriodID         INT           NOT NULL,
   FiscalYear             INT           NOT NULL,
   FiscalQuarter          INT           NOT NULL,

@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE BUDGETLINEITEM (
+CREATE OR REPLACE TABLE PLANNING.BUDGETLINEITEM (
   BudgetLineItemID           NUMBER(38,0)  NOT NULL,  -- bigint
   BudgetHeaderID             INT           NOT NULL,
   GLAccountID                INT           NOT NULL,

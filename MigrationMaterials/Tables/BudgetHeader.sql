@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE BUDGETHEADER (
+CREATE OR REPLACE TABLE PLANNING.BUDGETHEADER (
   BudgetHeaderID        INT            NOT NULL,
   BudgetCode            VARCHAR        NOT NULL,
   BudgetName            VARCHAR        NOT NULL,

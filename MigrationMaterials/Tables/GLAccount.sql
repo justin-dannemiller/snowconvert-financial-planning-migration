@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE GLACCOUNT (
+CREATE OR REPLACE TABLE PLANNING.GLACCOUNT (
   GLAccountID             INT            NOT NULL,
   AccountNumber           VARCHAR        NOT NULL,
   AccountName             VARCHAR        NOT NULL,
